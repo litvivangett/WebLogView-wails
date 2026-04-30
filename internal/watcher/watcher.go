@@ -9,21 +9,21 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/yourusername/weblogview/internal/config"
+	"github.com/litvivangett/weblogview/internal/config"
 )
 
 // FileWatcher watches a file for changes and streams new lines
 type FileWatcher struct {
-	path            string
-	tailLines       int
-	config          *config.Config
-	watcher         *fsnotify.Watcher
-	file            *os.File
-	offset          int64 // Track current file position
-	lastEventTime   time.Time // Track last fsnotify event
-	Lines           chan string
-	stopChan        chan struct{}
-	wg              sync.WaitGroup
+	path          string
+	tailLines     int
+	config        *config.Config
+	watcher       *fsnotify.Watcher
+	file          *os.File
+	offset        int64     // Track current file position
+	lastEventTime time.Time // Track last fsnotify event
+	Lines         chan string
+	stopChan      chan struct{}
+	wg            sync.WaitGroup
 }
 
 // NewFileWatcher creates a new file watcher
@@ -149,7 +149,7 @@ func (fw *FileWatcher) watch() {
 			if !ok {
 				return
 			}
-			
+
 			// Update last event time
 			fw.lastEventTime = time.Now()
 

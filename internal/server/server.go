@@ -1,20 +1,15 @@
 package server
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"net/http"
 
-	"github.com/yourusername/weblogview/internal/config"
-	"github.com/yourusername/weblogview/internal/settings"
-	"github.com/yourusername/weblogview/internal/watcher"
-	"github.com/yourusername/weblogview/internal/websocket"
+	"github.com/litvivangett/weblogview/internal/config"
+	"github.com/litvivangett/weblogview/internal/settings"
+	"github.com/litvivangett/weblogview/internal/watcher"
+	"github.com/litvivangett/weblogview/internal/websocket"
 )
-
-//go:embed static
-var staticFiles embed.FS
 
 // Server represents the HTTP server
 type Server struct {
@@ -37,8 +32,6 @@ func (s *Server) Start() error {
 	go s.hub.Run()
 
 	// Register HTTP handlers
-	http.HandleFunc("/", s.handleIndex)
-	http.HandleFunc("/api/health", s.handleHealth)
 	http.HandleFunc("/api/settings", s.handleSettings)
 	http.HandleFunc("/api/recent-files", s.handleRecentFiles)
 	http.HandleFunc("/api/recent-namespaces", s.handleRecentNamespaces)
@@ -54,36 +47,6 @@ func (s *Server) Start() error {
 	// Start server
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	return http.ListenAndServe(addr, nil)
-}
-
-// handleIndex serves the main HTML page
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	// Serve embedded static files
-	staticFS, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		http.Error(w, "Failed to load static files", http.StatusInternalServerError)
-		return
-	}
-
-	// Try to serve the requested file, default to index.html for SPA
-	requestPath := r.URL.Path
-	if requestPath == "/" {
-		requestPath = "/index.html"
-	}
-
-	// Check if file exists
-	if _, err := staticFS.Open(requestPath[1:]); err != nil {
-		// File not found, serve index.html for SPA routing
-		requestPath = "/index.html"
-	}
-
-	http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
-}
-
-// handleHealth handles health check requests
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"status":"ok"}`))
 }
 
 // handleSettings handles settings GET/POST requests

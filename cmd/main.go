@@ -8,9 +8,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/yourusername/weblogview/internal/config"
-	"github.com/yourusername/weblogview/internal/server"
-	"github.com/yourusername/weblogview/internal/settings"
+	"github.com/litvivangett/weblogview/internal/config"
+	"github.com/litvivangett/weblogview/internal/server"
+	"github.com/litvivangett/weblogview/internal/settings"
 )
 
 func main() {
