@@ -1,6 +1,5 @@
 # Binaries
-weblogview
-weblogview.exe
+bin
 *.exe
 *.dll
 *.so
@@ -8,6 +7,10 @@ weblogview.exe
 
 # Test binaries
 *.test
+
+# Build directories
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 
 # Output of the go coverage tool
 *.out
@@ -30,19 +33,18 @@ go.work
 Thumbs.db
 
 # Frontend
-web/node_modules/
-web/dist/
-web/.vite/
-web/package-lock.json
-web/yarn.lock
-
-# Embedded static files (generated during build)
-internal/server/static/*
-!internal/server/static/.gitkeep
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/package-lock.json
+frontend/yarn.lock
 
 # Build artifacts
-dist/
+frontend/dist
 
 # Logs for testing
 *.log
 test-logs/
+
+# Task files
+.task

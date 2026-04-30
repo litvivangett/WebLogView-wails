@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/yourusername/weblogview/internal/config"
-	"github.com/yourusername/weblogview/internal/settings"
-	"github.com/yourusername/weblogview/internal/watcher"
+	"github.com/litvivangett/weblogview/internal/config"
+	"github.com/litvivangett/weblogview/internal/settings"
+	"github.com/litvivangett/weblogview/internal/watcher"
 )
 
 const (

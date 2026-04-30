@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
+import wails from "@wailsio/runtime/plugins/vite";
 
 export default defineConfig({
-  plugins: [preact()],
+  plugins: [
+      preact(),
+      wails("./bindings")
+  ],
   build: {
-    outDir: '../internal/server/static',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   server: {
