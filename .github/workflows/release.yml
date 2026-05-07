@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: WailsLogView-darwin-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact: WailsLogView-darwin-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: WailsLogView-linux-amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: WailsLogView-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
+      - name: Build & Package
+        run: |
+          wails3 build GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }}
+
+      - name: Package (macOS)
+        if: matrix.goos == 'darwin'
+        run: wails3 task darwin:create:app:bundle
+
+      - name: Rename output
+        shell: bash
+        run: |
+          mkdir -p dist/
+          if [ "${{ matrix.goos }}" = "darwin" ]; then
+            mv "bin/WailsLogView.app" "dist/WailsLogView-${{ matrix.goos }}-${{ matrix.goarch }}.app"
+          elif [ "${{ matrix.goos }}" = "windows" ]; then
+            mv "bin/WailsLogView.exe" "dist/WailsLogView-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          else
+            mv "bin/WailsLogView" "dist/WailsLogView-${{ matrix.goos }}-${{ matrix.goarch }}"
+          fi
+
+      # macOS code signing — uncomment when Apple certificate is available
+      # Required secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+      #   KEYCHAIN_PASSWORD, APPLE_SIGN_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+      #
+      # - name: Import Apple certificate
+      #   if: matrix.goos == 'darwin'
+      #   env:
+      #     APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      #     APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      #   run: |
+      #     CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+      #     KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+      #
+      #     echo -n "$APPLE_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+      #
+      #     security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+      #     security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #
+      #     security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" \
+      #       -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+      #     security set-key-partition-list -S apple-tool:,apple: \
+      #       -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #     security list-keychain -d user -s $KEYCHAIN_PATH
+      #
+      # - name: Store notarization credentials
+      #   if: matrix.goos == 'darwin'
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #     APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      #   run: |
+      #     xcrun notarytool store-credentials "release-notarize" \
+      #       --apple-id "$APPLE_ID" \
+      #       --team-id "$APPLE_TEAM_ID" \
+      #       --password "$APPLE_APP_PASSWORD"
+      #
+      # - name: Sign and notarize (macOS)
+      #   if: matrix.goos == 'darwin'
+      #   run: |
+      #     wails3 task darwin:sign:notarize
+      #   env:
+      #     SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+      #     KEYCHAIN_PROFILE: release-notarize
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release/
+          for dir in artifacts/WailsLogView-*; do
+            name=$(basename "$dir")
+            # Find the actual file/dir inside the artifact
+            if ls "$dir"/*.app 1>/dev/null 2>&1; then
+              # macOS .app bundle — tar the whole .app directory
+              tar -czf "release/${name}.tar.gz" -C "$dir" .
+            elif ls "$dir"/*.exe 1>/dev/null 2>&1; then
+              # Windows — zip
+              (cd "$dir" && zip -r "../../release/${name}.zip" .)
+            else
+              # Linux — tar
+              tar -czf "release/${name}.tar.gz" -C "$dir" .
+            fi
+          done
+          ls -lh release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false

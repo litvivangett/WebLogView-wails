@@ -8,6 +8,7 @@ import (
 	"log"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -23,8 +24,9 @@ type K8sWatcher struct {
 	podName       string
 	containerName string
 	tailLines     int64
-	ctx           context.Context
 	cancel        context.CancelFunc
+	stream        io.ReadCloser
+	mu            sync.Mutex
 }
 
 // K8sConfig contains configuration for Kubernetes connection
@@ -44,6 +46,7 @@ func NewK8sWatcher(cfg K8sConfig) (*K8sWatcher, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	_ = ctx // ctx is held only for cancellation via cancel()
 
 	return &K8sWatcher{
 		clientset:     clientset,
@@ -51,15 +54,12 @@ func NewK8sWatcher(cfg K8sConfig) (*K8sWatcher, error) {
 		podName:       cfg.PodName,
 		containerName: cfg.ContainerName,
 		tailLines:     cfg.TailLines,
-		ctx:           ctx,
 		cancel:        cancel,
 	}, nil
 }
 
-// Watch streams logs from the Kubernetes pod
-func (w *K8sWatcher) Watch(callback func([]string)) error {
-	defer w.cancel()
-
+// Watch streams logs from the Kubernetes pod using the provided context.
+func (w *K8sWatcher) Watch(ctx context.Context, callback func([]string)) error {
 	opts := &corev1.PodLogOptions{
 		Follow:     true,
 		Timestamps: false,
@@ -73,7 +73,7 @@ func (w *K8sWatcher) Watch(callback func([]string)) error {
 
 	// Get log stream
 	req := w.clientset.CoreV1().Pods(w.namespace).GetLogs(w.podName, opts)
-	stream, err := req.Stream(w.ctx)
+	stream, err := req.Stream(ctx)
 	if err != nil {
 		// Check for authentication errors
 		errMsg := err.Error()
@@ -82,6 +82,9 @@ func (w *K8sWatcher) Watch(callback func([]string)) error {
 		}
 		return fmt.Errorf("failed to open log stream: %w", err)
 	}
+	w.mu.Lock()
+	w.stream = stream
+	w.mu.Unlock()
 	defer stream.Close()
 
 	log.Printf("Started watching pod %s/%s", w.namespace, w.podName)
@@ -90,7 +93,7 @@ func (w *K8sWatcher) Watch(callback func([]string)) error {
 	reader := bufio.NewReader(stream)
 	for {
 		select {
-		case <-w.ctx.Done():
+		case <-ctx.Done():
 			log.Println("K8s watcher stopped")
 			return nil
 		default:
@@ -122,8 +125,14 @@ func (w *K8sWatcher) Watch(callback func([]string)) error {
 
 // Stop stops watching the pod logs
 func (w *K8sWatcher) Stop() {
+	w.mu.Lock()
+	s := w.stream
+	w.mu.Unlock()
+	if s != nil {
+		s.Close() // unblocks ReadString() immediately
+	}
 	if w.cancel != nil {
-		w.cancel()
+		w.cancel() // belt-and-suspenders: cancel internal ctx too
 	}
 }
 

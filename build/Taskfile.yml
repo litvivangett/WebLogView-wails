@@ -32,7 +32,7 @@ tasks:
       - dist/**/*
     deps:
       - task: install:frontend:deps
-      - task: generate:bindings
+      - task: generate:bindings:ts
         vars:
           BUILD_FLAGS:
             ref: .BUILD_FLAGS
@@ -96,6 +96,23 @@ tasks:
       - frontend/bindings/**/*
     cmds:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true
+
+  generate:bindings:ts:
+    label: generate:bindings:ts (BUILD_FLAGS={{.BUILD_FLAGS}})
+    summary: Generates bindings (TypeScript) for the frontend
+    deps:
+      - task: go:mod:tidy
+    sources:
+      - "**/*.[jt]s"
+      - exclude: frontend/**/*
+      - frontend/bindings/**/*  # Rerun when switching between dev/production mode causes changes in output
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - frontend/bindings/**/*
+    cmds:
+      - wails3 generate bindings -ts -f '{{.BUILD_FLAGS}}' -clean=true
 
   generate:icons:
     summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).

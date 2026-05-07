@@ -2,18 +2,17 @@ import { useState, useRef } from 'preact/hooks';
 import { LogViewerTab } from './LogViewerTab';
 
 export function App() {
-  const [tabs, setTabs] = useState([{ id: 1, title: 'New Tab' }]);
-  const [activeTabId, setActiveTabId] = useState(1);
-  const [nextId, setNextId] = useState(2);
+  const [tabs, setTabs] = useState(() => [{ id: crypto.randomUUID(), title: 'New Tab' }]);
+  const [activeTabId, setActiveTabId] = useState(() => tabs[0].id);
   const [draggedTabId, setDraggedTabId] = useState(null);
   const [dropTargetTabId, setDropTargetTabId] = useState(null);
   const tabRefsMap = useRef({});
 
   const addTab = () => {
-    const newTab = { id: nextId, title: 'New Tab' };
+    const newId = crypto.randomUUID();
+    const newTab = { id: newId, title: 'New Tab' };
     setTabs([...tabs, newTab]);
-    setActiveTabId(nextId);
-    setNextId(nextId + 1);
+    setActiveTabId(newId);
   };
 
   const closeTab = (tabId) => {
@@ -50,10 +49,10 @@ export function App() {
     
     // Always keep at least one tab
     if (newTabs.length === 0) {
-      const newTab = { id: nextId, title: 'New Tab' };
+      const newId = crypto.randomUUID();
+      const newTab = { id: newId, title: 'New Tab' };
       setTabs([newTab]);
-      setActiveTabId(nextId);
-      setNextId(nextId + 1);
+      setActiveTabId(newId);
     } else {
       setTabs(newTabs);
     }
@@ -195,6 +194,7 @@ export function App() {
               }
             }}
             tabId={tab.id}
+            isActive={activeTabId === tab.id}
             onTitleChange={(title) => updateTabTitle(tab.id, title)}
           />
         </div>

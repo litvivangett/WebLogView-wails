@@ -9,7 +9,7 @@ includes:
   android: ./build/android/Taskfile.yml
 
 vars:
-  APP_NAME: "github.com_litvivangett_WebLogView-wails"
+  APP_NAME: "WailsLogView"
   BIN_DIR: "bin"
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
 
@@ -58,3 +58,56 @@ tasks:
     summary: Builds and runs the Docker image
     cmds:
       - task: common:run:docker
+
+  go:test:
+    summary: Runs Go tests
+    cmds:
+      - go test ./...
+
+  go:fmt:
+    summary: Formats Go code
+    cmds:
+      - go fmt ./...
+
+  go:lint:
+    summary: Runs Go linter
+    cmds:
+      - golangci-lint run
+    preconditions:
+      - sh: which golangci-lint
+        msg: "golangci-lint is not installed. See https://golangci-lint.run/welcome/install/"
+
+  clean:
+    summary: Removes build artifacts
+    cmds:
+      - rm -rf bin/
+      - rm -rf frontend/dist/
+      - rm -rf frontend/bindings/
+
+  bump:patch:
+    summary: Bumps patch version
+    cmds:
+      - bash scripts/bump-version.sh patch
+
+  bump:minor:
+    summary: Bumps minor version
+    cmds:
+      - bash scripts/bump-version.sh minor
+
+  bump:major:
+    summary: Bumps major version
+    cmds:
+      - bash scripts/bump-version.sh major
+
+  release:all:
+    summary: Builds production binaries for all platforms available from macOS
+    desc: |
+      Builds darwin/arm64, darwin/amd64, and windows/amd64 locally.
+      Linux builds require native runners — push a version tag to trigger GitHub Actions CI.
+    cmds:
+      - wails3 build GOOS=darwin GOARCH=arm64
+      - wails3 build GOOS=darwin GOARCH=amd64
+      - wails3 build GOOS=windows GOARCH=amd64
+      - echo ""
+      - echo "✅ Built darwin/arm64, darwin/amd64, windows/amd64 to bin/"
+      - echo "ℹ️ Linux builds - push a version tag to trigger GitHub Actions"

@@ -1,6 +1,6 @@
-# WebLogView
+# WailsLogView
 
-A cross-platform, web-based log viewer with real-time file monitoring and Kubernetes pod log streaming.
+A native desktop log viewer built with Wails v3, featuring real-time file monitoring and Kubernetes pod log streaming.
 
 ## Features
 
@@ -14,7 +14,7 @@ A cross-platform, web-based log viewer with real-time file monitoring and Kubern
 - 📊 Dual-pane layout (all lines + filtered lines)
 - 🖱️ Click-to-highlight line navigation
 - ⚙️ Persistent settings with recent namespaces
-- 🌐 Web-based UI (works on any platform)
+- 🎯 Native desktop app (built with Wails v3)
 - 📦 Single executable (no dependencies)
 
 ## Quick Start
@@ -28,32 +28,15 @@ Download the latest release for your platform from the [Releases](../../releases
 macOS may block the application because it's not signed. To run it:
 
 ```bash
-# Make the file executable
-chmod +x weblogview-darwin-arm64
-
 # Remove macOS quarantine attribute (for downloaded files)
-xattr -d com.apple.quarantine weblogview-darwin-arm64
+xattr -c bin/WailsLogview.app
 ```
 
 Alternatively, after the first run attempt, go to **System Preferences → Security & Privacy** and click **"Open Anyway"**.
 
 ### Run
 
-```bash
-# macOS (Apple Silicon)
-./weblogview-darwin-arm64
-
-# macOS (Intel)
-./weblogview-darwin-amd64
-
-# Linux
-./weblogview-linux-amd64
-
-# Windows
-weblogview-windows-amd64.exe
-```
-
-The application will automatically open your browser to `http://localhost:8080`.
+The application will launch as a native desktop window.
 
 ## Usage
 
@@ -83,11 +66,7 @@ The application will automatically open your browser to `http://localhost:8080`.
 - Context switching for multi-cluster environments
 
 ### Command Line Options
-```bash
--port int       Port to run the server on (default 8080)
--host string    Host to bind the server to (default "localhost")
--no-browser     Don't automatically open browser
-```
+The application runs as a native desktop window with no command-line options required.
 
 ## Prerequisites
 
@@ -99,69 +78,134 @@ The application will automatically open your browser to `http://localhost:8080`.
 - Valid `~/.kube/config` file with cluster contexts
 - Appropriate RBAC permissions to list namespaces, pods, and read logs
 
-## Building from Source
+### For Development
+- Go 1.25 or later
+- [Wails v3 CLI](https://v3.wails.io/quick-start/first-app/): `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`
+- Node.js 18+ and npm
+- (Optional) [Task](https://taskfile.dev/) runner — or use `wails3 task` as a wrapper
 
-### Prerequisites
-- Go 1.21 or later
-- Node.js 18 or later
-- npm
-
-### Quick Build
-
-```bash
-make release
-```
-
-This will create production-ready executables in the `dist/` directory for all platforms.
-
-### Development Build
+### Getting Started
 
 ```bash
 # Install dependencies
 go mod download
-cd web && npm install && cd ..
+cd frontend && npm install && cd ..
 
-# Run backend
-go run ./cmd -no-browser
-
-# In another terminal, run frontend dev server
-cd web && npm run dev
+# Run in development mode (hot reload for Go + Vite frontend)
+wails3 dev
 ```
 
-The frontend dev server runs on `http://localhost:3000` and proxies to the backend on `http://localhost:8080`.
+### Task Commands
+
+All tasks are defined in `Taskfile.yml` and platform-specific files under `build/`. Run with `wails3 task <name>` or `task <name>` if Task is installed directly.
+
+#### Development
+
+| Command | Description |
+|---|---|
+| `wails3 dev` | Run app with hot reload (Go + frontend) |
+| `wails3 task go:test` | Run Go tests |
+| `wails3 task go:fmt` | Format Go code |
+| `wails3 task go:lint` | Run golangci-lint |
+
+#### Build & Package
+
+| Command | Description |
+|---|---|
+| `wails3 build` | Build production binary for current platform → `bin/` |
+| `wails3 build GOOS=darwin GOARCH=arm64` | Cross-compile for a specific platform |
+| `wails3 task darwin:build:universal` | Build macOS universal binary (arm64 + amd64) |
+| `wails3 package` | Package for distribution (`.app` / installer / AppImage) |
+
+#### Signing & Release
+
+| Command | Description |
+|---|---|
+| `wails3 task darwin:sign` | Sign macOS `.app` with Developer ID |
+| `wails3 task darwin:sign:notarize` | Sign + notarize for macOS distribution |
+| `wails3 task windows:sign` | Sign Windows executable |
+
+Configure signing in `build/darwin/Taskfile.yml` (macOS) or `build/windows/Taskfile.yml` (Windows). See [Wails signing guide](https://v3.wails.io/guides/build/signing/).
+
+#### Bindings & Assets
+
+| Command | Description |
+|---|---|
+| `wails3 generate bindings -ts` | Regenerate TypeScript bindings after changing Go services |
+| `wails3 task generate:icons` | Regenerate app icons from `build/appicon.png` |
+
+#### Utilities
+
+| Command | Description |
+|---|---|
+| `wails3 task clean` | Remove build artifacts (`bin/`, `frontend/dist/`, `frontend/bindings/`) |
+| `wails3 task release:all` | Build all platforms locally (requires Docker — run `wails3 task setup:docker` first) |
+| `wails3 task bump:patch` | Bump patch version (e.g., 1.0.0 → 1.0.1) |
+| `wails3 task bump:minor` | Bump minor version |
+| `wails3 task bump:major` | Bump major version |
+
+### Releasing
+
+Releases are automated via GitHub Actions. Push a version tag to trigger:
+
+```bash
+wails3 task bump:patch            # 1.0.0 → 1.0.1
+git add VERSION && git commit -m "Bump version to 1.0.1"
+git tag v1.0.1
+git push origin main --tags
+```
+
+The [release workflow](.github/workflows/release.yml) will:
+1. Build native binaries on macOS, Linux, and Windows runners
+2. Sign and notarize the macOS `.app` with the corporate Apple certificate
+3. Package archives (`.tar.gz` for macOS/Linux, `.zip` for Windows)
+4. Create a GitHub Release with all assets attached
+
+### How It Works (Wails Architecture)
+
+[Wails v3](https://v3.wails.io/) creates a native desktop window with an embedded webview. The Go backend and Preact frontend communicate directly in-process — no HTTP server, no WebSocket, no network overhead.
+
+- **Bindings (request/response):** Frontend calls Go functions via auto-generated TypeScript bindings in `frontend/bindings/`. Wails generates these from Go service methods — never write them manually. Regenerate with `wails3 generate bindings -ts`.
+- **Events (real-time streaming):** Backend emits events (`log-initial`, `log-lines`, `log-error`) that frontend listens to via `@wailsio/runtime`. This replaces WebSocket-based streaming.
+- **Assets:** Frontend is built by Vite to `frontend/dist/` and embedded into the Go binary via `//go:embed`. The result is a single executable with no external dependencies.
 
 ## Project Structure
 
 ```
-WebLogView/
-├── cmd/
-│   └── main.go                 # Application entry point
+WailsLogView/
+├── main.go                      # Wails app entry point (services, window, events)
 ├── internal/
-│   ├── config/                 # Configuration management
-│   ├── server/                 # HTTP server and API
-│   │   └── static/             # Embedded frontend (generated)
-│   ├── settings/               # Persistent settings
-│   ├── websocket/              # WebSocket hub and client
-│   └── watcher/                # File watching and K8s log streaming
-│       ├── watcher.go          # File watcher
-│       ├── k8s_watcher.go      # Kubernetes pod log streaming
-│       ├── k8s_pods.go         # Pod discovery
-│       ├── k8s_contexts.go     # Context management
-│       └── k8s_namespaces.go   # Namespace listing
-├── web/                        # Frontend Preact application
+│   ├── config/                  # Application configuration
+│   ├── env/                     # Environment/path utilities
+│   ├── handlers/                # Wails services (frontend-callable Go functions)
+│   │   ├── file/                # FileService — open files, start streaming
+│   │   ├── k8s/                 # K8sService — contexts, namespaces, pods, logs
+│   │   ├── recent/              # RecentService — recent files & namespaces
+│   │   └── settings/            # SettingsService — app settings CRUD
+│   ├── session/                 # Session manager — streaming lifecycle & event emission
+│   ├── settings/                # Persistent settings storage (~/.weblogview/)
+│   └── watcher/                 # File system & K8s log streaming
+│       ├── watcher.go           # File watcher (fsnotify)
+│       ├── k8s_watcher.go       # Kubernetes pod log streaming
+│       ├── k8s_pods.go          # Pod discovery
+│       ├── k8s_contexts.go      # Context management
+│       └── k8s_namespaces.go    # Namespace listing
+├── frontend/                    # Preact frontend (Vite)
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── K8sConnector.jsx    # Kubernetes connection UI
-│   │   │   ├── DropZone.jsx        # File/K8s source selector
-│   │   │   └── ...
-│   │   ├── hooks/
+│   │   ├── components/          # UI components (App, LogViewer, K8sConnector, etc.)
+│   │   ├── hooks/               # Custom hooks (Wails event listeners)
 │   │   └── main.jsx
+│   ├── bindings/                # Auto-generated Wails TypeScript bindings
 │   ├── vite.config.js
 │   └── package.json
-├── scripts/
-│   └── build-release.sh        # Release build script
+├── build/                       # Wails build config, icons, platform Taskfiles
+│   ├── config.yml               # App metadata, dev mode config
+│   ├── darwin/                  # macOS: Info.plist, signing config, icons
+│   ├── windows/                 # Windows: manifest, icon, signing config
+│   └── linux/                   # Linux: .desktop file, packaging config
+├── vendor/                      # Vendored Go dependencies
 ├── go.mod
-├── Makefile
+├── Taskfile.yml                 # Root task definitions
 ├── DESIGN.md
 └── README.md
 ```
@@ -177,20 +221,24 @@ Settings are stored in `~/.weblogview/settings.json` and persist across sessions
 
 Access settings via the ⚙️ button in the control bar.
 
-## API Endpoints
+## API Bindings
+
+The frontend communicates with the Go backend via Wails bindings (IPC). Key functions:
 
 ### File Operations
-- `GET /api/recent-files` - Get recently opened files
-- `WS /ws` - WebSocket for log streaming
+- `OpenFile(path)` - Open a log file for streaming
+- `GetRecentFiles()` - Get recently opened files
 
 ### Kubernetes Operations
-- `GET /api/k8s/contexts` - List available Kubernetes contexts
-- `POST /api/k8s/switch-context` - Switch active context
-- `GET /api/k8s/namespaces` - List all namespaces in current context
-- `GET /api/k8s/pods?namespace=X` - List pods in namespace
-- `GET /api/k8s/containers?namespace=X&pod=Y` - List containers in pod
-- `GET /api/recent-namespaces` - Get recently used namespaces
-- `WS /ws` - WebSocket for pod log streaming (type: "open-k8s")
+- `GetContexts()` - List available Kubernetes contexts
+- `SwitchContext(context)` - Switch active context
+- `GetNamespaces()` - List all namespaces in current context
+- `GetPods(namespace)` - List pods in namespace
+- `GetContainers(namespace, pod)` - List containers in pod
+- `GetRecentNamespaces()` - Get recently used namespaces
+- `OpenK8sLogs(namespace, pod, container)` - Start streaming pod logs
+
+For a complete list, see the generated Wails bindings in `frontend/bindings/`.
 
 ## Architecture
 

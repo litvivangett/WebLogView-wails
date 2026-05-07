@@ -1,13 +1,13 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A github.com_litvivangett_WebLogView-wails application
+Name=WailsLogView
+Comment=Real-time tail log viewer for Kubernetes and files
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/github.com_litvivangett_weblogview-wails %u
+Exec=/usr/local/bin/WailsLogView %u
 Terminal=false
 Type=Application
-Icon=github.com_litvivangett_weblogview-wails
+Icon=WailsLogView
 Categories=Utility;
-StartupWMClass=github.com_litvivangett_weblogview-wails
+StartupWMClass=WailsLogView
 
  
