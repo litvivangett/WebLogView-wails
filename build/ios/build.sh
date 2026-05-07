@@ -4,8 +4,8 @@ set -e
 # Build configuration
 APP_NAME="WailsLogView"
 BUNDLE_ID="com.litvivangett.WailsLogView"
-VERSION="0.0.1"
-BUILD_NUMBER="0.0.1"
+VERSION="1.0.0"
+BUILD_NUMBER="1.0.0"
 BUILD_DIR="build/ios"
 TARGET="simulator"
 
