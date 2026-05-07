@@ -2,10 +2,10 @@
 set -e
 
 # Build configuration
-APP_NAME="github.com_litvivangett_weblogview-wails"
-BUNDLE_ID="com.example.githubcomlitvivangettweblogviewwails"
-VERSION="0.1.0"
-BUILD_NUMBER="0.1.0"
+APP_NAME="WailsLogView"
+BUNDLE_ID="com.litvivangett.WailsLogView"
+VERSION="0.0.1"
+BUILD_NUMBER="0.0.1"
 BUILD_DIR="build/ios"
 TARGET="simulator"
 

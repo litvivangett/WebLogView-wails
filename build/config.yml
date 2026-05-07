@@ -6,8 +6,8 @@ version: '3'
 # This information is used to generate the build assets.
 info:
   companyName: "Company" # The name of the company
-  productName: "WebLogViewer" # The name of the application
-  productIdentifier: "com.litvivangett.weblogviewer" # The unique product identifier
+  productName: "WailsLogView" # The name of the application
+  productIdentifier: "com.litvivangett.WailsLogView" # The unique product identifier
   description: "Real-time tail log viewer for Kubernetes and files" # The application description
   copyright: "(c) 2026, My Company" # Copyright text
   comments: "Some Product Comments" # Comments

@@ -5,10 +5,16 @@
 // @ts-ignore: Unused imports
 import type { Events } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as session$0 from "../../../../litvivangett/weblogview/internal/session/models.js";
+
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
-            "time": string;
+            "log-error": session$0.LogErrorEvent;
+            "log-initial": session$0.LogLinesEvent;
+            "log-lines": session$0.LogLinesEvent;
         }
     }
 }

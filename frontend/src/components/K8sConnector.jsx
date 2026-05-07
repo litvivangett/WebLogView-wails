@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import * as K8sService from '../../bindings/github.com/litvivangett/weblogview/internal/handlers/k8s/k8sservice';
 
 export function K8sConnector({ onConnect }) {
   const [namespace, setNamespace] = useState('default');
@@ -22,30 +23,18 @@ export function K8sConnector({ onConnect }) {
 
   useEffect(() => {
     // Load contexts
-    fetch('/api/k8s/contexts')
-      .then(async res => {
-        if (!res.ok) {
-          const errorText = await res.text();
-          if (res.status === 401 || errorText.includes('authentication') || errorText.includes('Unauthorized')) {
-            setAuthError('Authentication required: Please authenticate with kubectl (e.g., gcloud auth login, aws eks update-kubeconfig, etc.)');
-          } else {
-            setAuthError(`Failed to load Kubernetes contexts: ${errorText}`);
-          }
-          return [];
-        }
-        setAuthError(null);
-        return res.json();
-      })
+    K8sService.ListContexts()
       .then(ctxs => {
         setContexts(ctxs || []);
         const current = ctxs.find(c => c.isCurrent);
         if (current) {
           setCurrentContext(current.name);
         }
+        setAuthError(null);
       })
       .catch(err => {
         console.error('Failed to load contexts:', err);
-        setAuthError('Failed to connect to Kubernetes: ' + err.message);
+        setAuthError('Failed to connect to Kubernetes: ' + (err.message || err));
       });
   }, []);
 
@@ -75,27 +64,15 @@ export function K8sConnector({ onConnect }) {
 
   const fetchNamespaces = async () => {
     try {
-      const response = await fetch('/api/k8s/namespaces');
-      if (response.ok) {
-        const namespaces = await response.json();
-        // Reverse the order (descending)
-        const reversedNamespaces = (namespaces || []).reverse();
-        setAvailableNamespaces(reversedNamespaces);
-        setFilteredNamespaces(reversedNamespaces);
-        setAuthError(null);
-      } else {
-        const errorText = await response.text();
-        if (response.status === 401 || errorText.includes('authentication') || errorText.includes('Unauthorized')) {
-          setAuthError('Authentication expired: Please re-authenticate with your cluster');
-        } else {
-          setAuthError('Failed to fetch namespaces: ' + errorText);
-        }
-        setAvailableNamespaces([]);
-        setFilteredNamespaces([]);
-      }
+      const namespaces = await K8sService.ListNamespaces();
+      // Reverse the order (descending)
+      const reversedNamespaces = (namespaces || []).reverse();
+      setAvailableNamespaces(reversedNamespaces);
+      setFilteredNamespaces(reversedNamespaces);
+      setAuthError(null);
     } catch (err) {
       console.error('Failed to fetch namespaces:', err);
-      setAuthError('Failed to connect to Kubernetes: ' + err.message);
+      setAuthError('Failed to connect to Kubernetes: ' + (err.message || err));
       setAvailableNamespaces([]);
       setFilteredNamespaces([]);
     }
@@ -139,26 +116,17 @@ export function K8sConnector({ onConnect }) {
     setNamespaceError('');
     
     try {
-      const response = await fetch(`/api/k8s/pods?namespace=${encodeURIComponent(ns)}`);
-      if (response.ok) {
-        const pods = await response.json();
-        setAvailablePods(pods || []);
-        setFilteredPods(pods || []);
-        
-        // Only show valid status if there are pods, otherwise show warning
-        if (pods && pods.length > 0) {
-          setNamespaceStatus('valid');
-          setNamespaceError('');
-        } else {
-          setNamespaceStatus('warning');
-          setNamespaceError('Namespace is valid but contains no pods');
-        }
+      const pods = await K8sService.ListPods(ns);
+      setAvailablePods(pods || []);
+      setFilteredPods(pods || []);
+      
+      // Only show valid status if there are pods, otherwise show warning
+      if (pods && pods.length > 0) {
+        setNamespaceStatus('valid');
+        setNamespaceError('');
       } else {
-        setAvailablePods([]);
-        setFilteredPods([]);
-        setNamespaceStatus('error');
-        const errorText = await response.text();
-        setNamespaceError(errorText || `Failed to fetch pods (${response.status})`);
+        setNamespaceStatus('warning');
+        setNamespaceError('Namespace is valid but contains no pods');
       }
     } catch (err) {
       console.error('Failed to fetch pods:', err);
@@ -197,18 +165,12 @@ export function K8sConnector({ onConnect }) {
     if (!ns || ns.trim() === '' || !pod || pod.trim() === '') return;
     
     try {
-      const response = await fetch(`/api/k8s/containers?namespace=${encodeURIComponent(ns)}&pod=${encodeURIComponent(pod)}`);
-      if (response.ok) {
-        const containers = await response.json();
-        setAvailableContainers(containers || []);
-        setFilteredContainers(containers || []);
-        // Auto-populate container name with the first container if available
-        if (containers && containers.length > 0 && !containerName) {
-          setContainerName(containers[0]);
-        }
-      } else {
-        setAvailableContainers([]);
-        setFilteredContainers([]);
+      const containers = await K8sService.ListContainers(ns, pod);
+      setAvailableContainers(containers || []);
+      setFilteredContainers(containers || []);
+      // Auto-populate container name with the first container if available
+      if (containers && containers.length > 0 && !containerName) {
+        setContainerName(containers[0]);
       }
     } catch (err) {
       console.error('Failed to fetch containers:', err);
@@ -244,25 +206,17 @@ export function K8sConnector({ onConnect }) {
   const handleContextSwitch = async (contextName) => {
     setShowContexts(false);
     try {
-      const response = await fetch('/api/k8s/switch-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: contextName })
-      });
+      await K8sService.SwitchContext(contextName);
       
-      if (response.ok) {
-        setCurrentContext(contextName);
-        // Update contexts to reflect new current
-        setContexts(prev => prev.map(c => ({
-          ...c,
-          isCurrent: c.name === contextName
-        })));
-        // Reset namespace validation when switching contexts
-        setNamespaceStatus(null);
-        setNamespaceError('');
-      } else {
-        alert('Failed to switch context');
-      }
+      setCurrentContext(contextName);
+      // Update contexts to reflect new current
+      setContexts(prev => prev.map(c => ({
+        ...c,
+        isCurrent: c.name === contextName
+      })));
+      // Reset namespace validation when switching contexts
+      setNamespaceStatus(null);
+      setNamespaceError('');
     } catch (err) {
       console.error('Failed to switch context:', err);
       alert('Failed to switch context');

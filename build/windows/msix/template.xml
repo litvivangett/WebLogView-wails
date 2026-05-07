@@ -8,7 +8,7 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="github.com_litvivangett_weblogview-wails"
+        Path="wailslogview"
         Arguments=""
         InstallLocation="C:\Program Files\My Company\My Product">
     </Installer>
@@ -18,17 +18,17 @@
         PublisherName="CN=My Company"
         PublisherDisplayName="My Company"
         Version="0.1.0.0"
-        PackageDescription="A github.com_litvivangett_WebLogView-wails application">
+        PackageDescription="A WailsLogView application">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
         </Capabilities>
         <Applications>
             <Application
-                Id="com.example.githubcomlitvivangettweblogviewwails"
-                Description="A github.com_litvivangett_WebLogView-wails application"
+                Id="com.example.wailslogview"
+                Description="A WailsLogView application"
                 DisplayName="My Product"
-                ExecutableName="github.com_litvivangett_weblogview-wails"
+                ExecutableName="wailslogview"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -43,11 +43,11 @@
             <Framework>false</Framework>
             <DisplayName>My Product</DisplayName>
             <PublisherDisplayName>My Company</PublisherDisplayName>
-            <Description>A github.com_litvivangett_WebLogView-wails application</Description>
+            <Description>A WailsLogView application</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="github.com_litvivangett_weblogview-wails.msix" />
+    <SaveLocation PackagePath="wailslogview.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

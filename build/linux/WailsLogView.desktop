@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=wailslogview
+Exec=WailsLogView
+Icon=WailsLogView
+Categories=Development;
+Terminal=false
+Keywords=wails
+Version=1.0
+StartupNotify=false

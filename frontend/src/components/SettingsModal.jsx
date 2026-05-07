@@ -1,5 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
+import * as SettingsService from '../../bindings/github.com/litvivangett/weblogview/internal/handlers/settings/settingsservice';
 
 export function SettingsModal({ isOpen, onClose }) {
   const [tailLines, setTailLines] = useState(1000);
@@ -18,10 +19,8 @@ export function SettingsModal({ isOpen, onClose }) {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/settings');
-      if (!response.ok) throw new Error('Failed to load settings');
-      const data = await response.json();
-      setTailLines(data.tailLines);
+      const data = await SettingsService.GetSettings();
+      setTailLines(data.maxLinesPerPane);
       setRenderAnsiTopPane(data.renderAnsiTopPane);
       setRenderAnsiBottomPane(data.renderAnsiBottomPane);
       setPollingIntervalMs(data.pollingIntervalMs || 500);
@@ -36,18 +35,13 @@ export function SettingsModal({ isOpen, onClose }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tailLines: parseInt(tailLines),
-          renderAnsiTopPane,
-          renderAnsiBottomPane,
-          pollingIntervalMs: parseInt(pollingIntervalMs),
-          sourceNameFormat
-        })
+      await SettingsService.UpdateSettings({ 
+        maxLinesPerPane: parseInt(tailLines),
+        renderAnsiTopPane,
+        renderAnsiBottomPane,
+        pollingIntervalMs: parseInt(pollingIntervalMs),
+        sourceNameFormat
       });
-      if (!response.ok) throw new Error('Failed to save settings');
       onClose();
     } catch (err) {
       console.error('Failed to save settings:', err);

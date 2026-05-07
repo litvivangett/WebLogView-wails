@@ -124,6 +124,10 @@ func (s *Settings) SetRenderAnsiBottomPane(render bool) {
 
 // AddRecentFile adds a file to the recent files list (max 10, most recent first)
 func (s *Settings) AddRecentFile(filePath string) error {
+	if filePath == "" {
+		return nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -196,6 +200,34 @@ func (s *Settings) GetRecentNamespaces() []string {
 	result := make([]string, len(s.RecentNamespaces))
 	copy(result, s.RecentNamespaces)
 	return result
+}
+
+// GetPollingIntervalMs returns the polling interval in milliseconds
+func (s *Settings) GetPollingIntervalMs() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PollingIntervalMs
+}
+
+// SetPollingIntervalMs sets the polling interval in milliseconds
+func (s *Settings) SetPollingIntervalMs(interval int) {
+	s.mu.Lock()
+	s.PollingIntervalMs = interval
+	s.mu.Unlock()
+}
+
+// GetSourceNameFormat returns the source name format
+func (s *Settings) GetSourceNameFormat() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.SourceNameFormat
+}
+
+// SetSourceNameFormat sets the source name format
+func (s *Settings) SetSourceNameFormat(format string) {
+	s.mu.Lock()
+	s.SourceNameFormat = format
+	s.mu.Unlock()
 }
 
 // saveUnlocked saves settings without locking (internal use only)
