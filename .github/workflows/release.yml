@@ -7,6 +7,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     strategy:
@@ -80,8 +83,16 @@ jobs:
         if: steps.cache-wails.outputs.cache-hit != 'true'
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.80
 
+      - name: Cache Task CLI
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/task
+          key: ${{ runner.os }}-task-v3.50.0
+
       - name: Install Task
         uses: arduino/setup-task@v2
+        with:
+          version: 3.50.0
 
       - name: Build & Package
         run: |
