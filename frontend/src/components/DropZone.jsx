@@ -26,6 +26,8 @@ export function DropZone({ onFileSelect, onK8sConnect }) {
           { DisplayName: 'Log Files', Pattern: '*.log;*.txt;*.out' },
           { DisplayName: 'All Files', Pattern: '*.*' },
         ],
+        CanChooseFiles: true,
+        CanChooseDirectories: false,
       });
       if (selected) {
         onFileSelect(selected);

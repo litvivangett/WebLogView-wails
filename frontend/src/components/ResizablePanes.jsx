@@ -75,12 +75,15 @@ const styles = {
   resizeHandle: {
     height: '8px',
     background: '#2d2d30',
-    cursor: 'ns-resize',
+    cursor: 'row-resize',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     transition: 'background 0.1s ease',
     userSelect: 'none',
+  },
+  resizeHandleHover: {
+    background: '#003559',
   },
   resizeHandleActive: {
     background: '#007acc',

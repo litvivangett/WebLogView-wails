@@ -1,47 +1,42 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { Events } from '@wailsio/runtime';
+import { subscribeToWailsLogEvents } from './subscribeToWailsLogEvents.js';
 
 /**
  * Hook that listens to Wails events for log streaming on a specific tab.
  * Replaces useWebSocket for the Wails desktop app.
  *
  * @param {string} tabId - Unique identifier for this tab's log stream
+ * @param {{ onEvent?: ((event: object) => void), onError?: ((error: string) => void) }} [options]
  * @returns {{ lastEvent: object|null, error: string|null }}
  */
-export function useWailsLogs(tabId) {
+export function useWailsLogs(tabId, options = {}) {
   const [lastEvent, setLastEvent] = useState(null);
   const [error, setError] = useState(null);
-  const cleanupRef = useRef([]);
+  const onEventRef = useRef(options.onEvent);
+  const onErrorRef = useRef(options.onError);
 
   useEffect(() => {
-    if (!tabId) return;
+    onEventRef.current = options.onEvent;
+    onErrorRef.current = options.onError;
+  });
+
+  useEffect(() => {
     setError(null);
+    setLastEvent(null);
 
-    const unsubInitial = Events.On("log-initial", (event) => {
-      if (event.data && event.data.tabId === tabId) {
-        setLastEvent({ type: 'initial', lines: event.data.lines });
-      }
+    return subscribeToWailsLogEvents({
+      tabId,
+      eventsApi: Events,
+      onEvent: (event) => {
+        setLastEvent(event);
+        onEventRef.current?.(event);
+      },
+      onError: (nextError) => {
+        setError(nextError);
+        onErrorRef.current?.(nextError);
+      },
     });
-
-    const unsubLines = Events.On("log-lines", (event) => {
-      if (event.data && event.data.tabId === tabId) {
-        setLastEvent({ type: 'lines', lines: event.data.lines });
-      }
-    });
-
-    const unsubError = Events.On("log-error", (event) => {
-      if (event.data && event.data.tabId === tabId) {
-        setError(event.data.error);
-      }
-    });
-
-    cleanupRef.current = [unsubInitial, unsubLines, unsubError];
-
-    return () => {
-      cleanupRef.current.forEach(unsub => {
-        if (unsub && typeof unsub === 'function') unsub();
-      });
-    };
   }, [tabId]);
 
   return { lastEvent, error };

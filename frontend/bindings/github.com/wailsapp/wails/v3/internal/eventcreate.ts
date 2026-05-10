@@ -14,6 +14,9 @@ function configure() {
     Object.freeze(Object.assign($Create.Events, {
         "log-error": $$createType0,
         "log-initial": $$createType1,
+        "log-initial-chunk": $$createType1,
+        "log-initial-complete": $$createType2,
+        "log-initial-start": $$createType2,
         "log-lines": $$createType1,
     }));
 }
@@ -21,5 +24,6 @@ function configure() {
 // Private type creation functions
 const $$createType0 = session$0.LogErrorEvent.createFrom;
 const $$createType1 = session$0.LogLinesEvent.createFrom;
+const $$createType2 = session$0.LogLoadEvent.createFrom;
 
 configure();

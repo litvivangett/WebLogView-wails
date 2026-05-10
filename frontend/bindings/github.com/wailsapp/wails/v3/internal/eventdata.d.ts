@@ -14,6 +14,9 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "log-error": session$0.LogErrorEvent;
             "log-initial": session$0.LogLinesEvent;
+            "log-initial-chunk": session$0.LogLinesEvent;
+            "log-initial-complete": session$0.LogLoadEvent;
+            "log-initial-start": session$0.LogLoadEvent;
             "log-lines": session$0.LogLinesEvent;
         }
     }
