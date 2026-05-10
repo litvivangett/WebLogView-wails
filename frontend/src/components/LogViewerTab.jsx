@@ -7,6 +7,7 @@ import { ResizablePanes } from './ResizablePanes';
 import { SettingsModal } from './SettingsModal';
 import { LogDetailModal } from './LogDetailModal';
 import { useWailsLogs } from '../hooks/useWailsLogs';
+import { reduceLogViewerState } from '../logLifecycle.js';
 import { Events } from '@wailsio/runtime';
 import * as FileService from '../../bindings/github.com/litvivangett/weblogview/internal/handlers/file/fileservice';
 import * as K8sService from '../../bindings/github.com/litvivangett/weblogview/internal/handlers/k8s/k8sservice';
@@ -33,15 +34,42 @@ const getSourceColor = (sourceName, sourceIndex) => {
 };
 
 export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref) => {
-  const [lines, setLines] = useState([]);
-  const [logSources, setLogSources] = useState([]); // Array of {id, name, color}
+  const linesRef = useRef([]);
+  const [linesState, setLinesState] = useState([]);
+  const setLines = useCallback((value) => {
+    setLinesState((previousLines) => {
+      const nextLines = typeof value === 'function' ? value(previousLines) : value;
+      linesRef.current = nextLines;
+      return nextLines;
+    });
+  }, []);
+  const lines = linesState;
+  const logSourcesRef = useRef([]);
+  const [logSourcesState, setLogSourcesState] = useState([]); // Array of {id, name, color}
+  const setLogSources = useCallback((value) => {
+    setLogSourcesState((previousSources) => {
+      const nextSources = typeof value === 'function' ? value(previousSources) : value;
+      logSourcesRef.current = nextSources;
+      return nextSources;
+    });
+  }, []);
+  const logSources = logSourcesState;
   const [mergedTabRefs, setMergedTabRefs] = useState([]); // Refs to merged tabs
   const [currentSourceId, setCurrentSourceId] = useState(null); // Primary source
   const [includeFilter, setIncludeFilter] = useState('');
   const [excludeFilter, setExcludeFilter] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const [connected, setConnected] = useState(false);
-  const [fileName, setFileName] = useState('');
+  const fileNameRef = useRef('');
+  const [fileNameState, setFileNameState] = useState('');
+  const setFileName = useCallback((value) => {
+    setFileNameState((previousFileName) => {
+      const nextFileName = typeof value === 'function' ? value(previousFileName) : value;
+      fileNameRef.current = nextFileName;
+      return nextFileName;
+    });
+  }, []);
+  const fileName = fileNameState;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [renderAnsiTopPane, setRenderAnsiTopPane] = useState(true);
   const [renderAnsiBottomPane, setRenderAnsiBottomPane] = useState(true);
@@ -49,11 +77,68 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
   const [errorMessage, setErrorMessage] = useState(null);
   const [modalLogLine, setModalLogLine] = useState(null);
   const [modalLineNumber, setModalLineNumber] = useState(null);
+  const isLoadingInitialRef = useRef(false);
+  const [isLoadingInitialState, setIsLoadingInitialState] = useState(false);
+  const setIsLoadingInitial = useCallback((value) => {
+    setIsLoadingInitialState((previousIsLoadingInitial) => {
+      const nextIsLoadingInitial =
+        typeof value === 'function' ? value(previousIsLoadingInitial) : value;
+      isLoadingInitialRef.current = nextIsLoadingInitial;
+      return nextIsLoadingInitial;
+    });
+  }, []);
+  const isLoadingInitial = isLoadingInitialState;
   const messageCallbacks = useRef([]); // Callbacks for other tabs to receive our messages
   const sourceColorMapRef = useRef({}); // Map source names to colors for quick lookup
   const onTitleChangeRef = useRef(onTitleChange);
 
-  const { lastEvent, error: wailsError } = useWailsLogs(tabId);
+  const handleWailsEvent = useCallback((event) => {
+    if (!event) return;
+
+    const currentLogSources = logSourcesRef.current;
+    const currentFileName = fileNameRef.current;
+    const currentState = {
+      lines: linesRef.current,
+      isLoadingInitial: isLoadingInitialRef.current,
+    };
+    const shouldPrefix = currentLogSources.length > 0;
+    let color = null;
+    if (shouldPrefix && currentFileName) {
+      const source = currentLogSources.find((logSource) => logSource.name === currentFileName);
+      color = source ? source.color : getSourceColor(currentFileName, 0);
+    }
+    const prefix = shouldPrefix && currentFileName ? `[${currentFileName}]|||${color}|||` : '';
+    const eventWithDisplayLines = event.lines
+      ? {
+          ...event,
+          lines: shouldPrefix ? event.lines.map((line) => `${prefix}${line}`) : event.lines,
+        }
+      : event;
+    const nextState = reduceLogViewerState(currentState, eventWithDisplayLines);
+
+    if (nextState.lines !== currentState.lines) {
+      setLines(nextState.lines);
+    }
+    if (nextState.isLoadingInitial !== currentState.isLoadingInitial) {
+      setIsLoadingInitial(nextState.isLoadingInitial);
+    }
+
+    switch (event.type) {
+      case 'lines':
+        messageCallbacks.current.forEach((callback) => {
+          callback(event.lines);
+        });
+        break;
+      case 'initial':
+      case 'initial-start':
+      case 'initial-chunk':
+      case 'initial-complete':
+      case 'clear':
+        break;
+    }
+  }, [setIsLoadingInitial, setLines]);
+
+  const { error: wailsError } = useWailsLogs(tabId, { onEvent: handleWailsEvent });
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -175,13 +260,8 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
   };
 
   useEffect(() => {
-    if (lastEvent) {
-      handleWailsEvent(lastEvent);
-    }
-  }, [lastEvent]);
-
-  useEffect(() => {
     if (wailsError) {
+      setIsLoadingInitial(false);
       setErrorMessage(wailsError);
     }
   }, [wailsError]);
@@ -208,37 +288,6 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
     });
     return unsubscribe;
   }, [isActive, hasConnection, handleFileOpen]);
-
-  const handleWailsEvent = (event) => {
-    if (!event) return;
-
-    const shouldPrefix = logSources.length > 0;
-    let color = null;
-    if (shouldPrefix && fileName) {
-      const source = logSources.find(s => s.name === fileName);
-      color = source ? source.color : getSourceColor(fileName, 0);
-    }
-    const prefix = shouldPrefix && fileName ? `[${fileName}]|||${color}|||` : '';
-
-    switch (event.type) {
-      case 'lines': {
-        const newLines = shouldPrefix ? event.lines.map(line => `${prefix}${line}`) : event.lines;
-        setLines(prev => [...prev, ...newLines]);
-        messageCallbacks.current.forEach(callback => {
-          callback(event.lines);
-        });
-        break;
-      }
-      case 'initial': {
-        const initialLines = shouldPrefix ? (event.lines || []).map(line => `${prefix}${line}`) : (event.lines || []);
-        setLines(initialLines);
-        break;
-      }
-      case 'clear':
-        setLines([]);
-        break;
-    }
-  };
 
   const handleK8sConnect = async (k8sConfig) => {
     try {
@@ -380,7 +429,7 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
             <LogViewer
               lines={lines}
               autoScroll={autoScroll}
-              title="All Lines"
+              title={isLoadingInitial ? 'All Lines (loading...)' : 'All Lines'}
               renderAnsi={renderAnsiTopPane}
               highlightedLineIndex={highlightedLineIndex}
               onLineDoubleClick={handleLineDoubleClick}
@@ -405,6 +454,7 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
             onSettingsClick={() => setSettingsOpen(true)}
             onClearClick={() => {
               setLines([]);
+              setIsLoadingInitial(false);
               setHighlightedLineIndex(null);
               // Help garbage collection by clearing the ref
               if (Object.keys(sourceColorMapRef.current).length > 0) {
@@ -418,7 +468,7 @@ export const LogViewerTab = forwardRef(({ tabId, onTitleChange, isActive }, ref)
             <LogViewer
               lines={filteredLines.lines}
               autoScroll={autoScroll}
-              title={hasFilters ? "Filtered Lines" : "All Lines"}
+              title={hasFilters ? "Filtered Lines" : (isLoadingInitial ? "All Lines (loading...)" : "All Lines")}
               renderAnsi={renderAnsiBottomPane}
               onLineClick={handleLineClick}
               onLineDoubleClick={handleLineDoubleClick}

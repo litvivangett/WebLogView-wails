@@ -20,6 +20,9 @@ import (
 var assets embed.FS
 
 func init() {
+	application.RegisterEvent[session.LogLoadEvent]("log-initial-start")
+	application.RegisterEvent[session.LogLinesEvent]("log-initial-chunk")
+	application.RegisterEvent[session.LogLoadEvent]("log-initial-complete")
 	application.RegisterEvent[session.LogLinesEvent]("log-initial")
 	application.RegisterEvent[session.LogLinesEvent]("log-lines")
 	application.RegisterEvent[session.LogErrorEvent]("log-error")

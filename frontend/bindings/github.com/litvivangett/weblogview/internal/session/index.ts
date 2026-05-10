@@ -8,5 +8,6 @@ export {
 
 export {
     LogErrorEvent,
-    LogLinesEvent
+    LogLinesEvent,
+    LogLoadEvent
 } from "./models.js";

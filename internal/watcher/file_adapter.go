@@ -3,14 +3,13 @@ package watcher
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/litvivangett/weblogview/internal/config"
 	"github.com/litvivangett/weblogview/internal/session"
 	"github.com/litvivangett/weblogview/internal/settings"
 )
 
-const initialBurstTimeout = 150 * time.Millisecond
+const initialChunkSize = 1000
 
 // FileWatcherAdapter wraps FileWatcher to implement session.Watcher.
 type FileWatcherAdapter struct {
@@ -61,47 +60,42 @@ func (a *FileWatcherAdapter) Stop() {
 	})
 }
 
-// collectLines reads from fw.Lines (individual) and sends batches.
-// The first batch is sent as the "initial" payload (all initial tail lines).
-// Subsequent lines are sent as small batches with a short debounce.
+func (a *FileWatcherAdapter) sendBatch(ctx context.Context, batch []string) bool {
+	select {
+	case a.linesCh <- batch:
+		return true
+	case <-ctx.Done():
+		return false
+	case <-a.stopCh:
+		return false
+	}
+}
+
+// collectLines emits initial lifecycle batches and then forwards live line batches.
 func (a *FileWatcherAdapter) collectLines(ctx context.Context) {
 	defer close(a.linesCh)
 
-	// Collect initial lines (wait briefly for the initial burst)
-	initialLines := []string{}
-	initialTimer := time.NewTimer(initialBurstTimeout)
-
-	// Collect initial burst
-collectInitial:
-	for {
-		select {
-		case line, ok := <-a.fw.Lines:
-			if !ok {
-				break collectInitial
-			}
-			initialLines = append(initialLines, line)
-		case <-initialTimer.C:
-			break collectInitial
-		case <-ctx.Done():
-			return
-		case <-a.stopCh:
-			return
-		}
+	if !a.sendBatch(ctx, []string{"__INITIAL_START__"}) {
+		return
 	}
-	initialTimer.Stop()
 
-	// Send initial batch
-	if len(initialLines) > 0 {
-		select {
-		case a.linesCh <- initialLines:
-		case <-ctx.Done():
-			return
-		case <-a.stopCh:
+	initialLines := a.fw.InitialLines()
+	for start := 0; start < len(initialLines); start += initialChunkSize {
+		end := start + initialChunkSize
+		if end > len(initialLines) {
+			end = len(initialLines)
+		}
+		chunk := append([]string(nil), initialLines[start:end]...)
+		chunk[0] = "__INITIAL_CHUNK__:" + chunk[0]
+		if !a.sendBatch(ctx, chunk) {
 			return
 		}
 	}
 
-	// Stream subsequent lines (batch with short debounce)
+	if !a.sendBatch(ctx, []string{"__INITIAL_COMPLETE__"}) {
+		return
+	}
+
 	for {
 		select {
 		case line, ok := <-a.fw.Lines:
@@ -122,11 +116,7 @@ collectInitial:
 					break drain
 				}
 			}
-			select {
-			case a.linesCh <- batch:
-			case <-ctx.Done():
-				return
-			case <-a.stopCh:
+			if !a.sendBatch(ctx, batch) {
 				return
 			}
 		case <-ctx.Done():

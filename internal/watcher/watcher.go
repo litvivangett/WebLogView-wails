@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ type FileWatcher struct {
 	file          *os.File
 	offset        int64     // Track current file position
 	lastEventTime time.Time // Track last fsnotify event
+	initialLines  []string
 	Lines         chan string
 	stopChan      chan struct{}
 	wg            sync.WaitGroup
@@ -61,11 +63,13 @@ func (fw *FileWatcher) Start() error {
 	}
 	fw.file = file
 
-	// Read initial tail lines
-	if err := fw.readTail(); err != nil {
+	initialLines, err := fw.readTailLinesBounded()
+	if err != nil {
 		fw.file.Close()
 		return fmt.Errorf("failed to read tail: %w", err)
 	}
+	fw.initialLines = initialLines
+	fw.offset, _ = fw.file.Seek(0, io.SeekEnd)
 
 	// Add file to watcher
 	if err := fw.watcher.Add(fw.path); err != nil {
@@ -96,43 +100,65 @@ func (fw *FileWatcher) Stop() {
 	close(fw.Lines)
 }
 
-// readTail reads the last N lines from the file
-func (fw *FileWatcher) readTail() error {
-	// For simplicity, we'll read the entire file and take last N lines
-	// TODO: Optimize for large files by seeking from the end
-	lines := []string{}
-	scanner := bufio.NewScanner(fw.file)
+func (fw *FileWatcher) InitialLines() []string {
+	return append([]string(nil), fw.initialLines...)
+}
 
-	// Set a larger buffer for long lines - max 10MB per line
-	buf := make([]byte, 0, fw.config.BufferSize)
-	scanner.Buffer(buf, 10*1024*1024)
-
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+// readTailLinesBounded reads the last N lines by seeking backward from the file end.
+func (fw *FileWatcher) readTailLinesBounded() ([]string, error) {
+	if fw.tailLines <= 0 {
+		return nil, nil
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	endOffset, err := fw.file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return nil, err
+	}
+	if endOffset == 0 {
+		return []string{}, nil
 	}
 
-	// Send last N lines
-	startIdx := 0
-	if len(lines) > fw.tailLines {
-		startIdx = len(lines) - fw.tailLines
+	blockSize := fw.config.BufferSize
+	if blockSize <= 0 {
+		blockSize = 64 * 1024
 	}
 
-	for i := startIdx; i < len(lines); i++ {
-		select {
-		case fw.Lines <- lines[i]:
-		case <-fw.stopChan:
-			return nil
+	var (
+		remaining    = endOffset
+		newlineCount int
+		blocks       [][]byte
+	)
+
+	for remaining > 0 && newlineCount <= fw.tailLines {
+		readSize := int64(blockSize)
+		if remaining < readSize {
+			readSize = remaining
 		}
+		remaining -= readSize
+
+		block := make([]byte, readSize)
+		if _, err := fw.file.ReadAt(block, remaining); err != nil && err != io.EOF {
+			return nil, err
+		}
+
+		newlineCount += bytes.Count(block, []byte{'\n'})
+		blocks = append([][]byte{block}, blocks...)
 	}
 
-	// Store current file position
-	fw.offset, _ = fw.file.Seek(0, io.SeekCurrent)
+	lines := bytes.Split(bytes.Join(blocks, nil), []byte{'\n'})
+	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) > fw.tailLines {
+		lines = lines[len(lines)-fw.tailLines:]
+	}
 
-	return nil
+	result := make([]string, len(lines))
+	for i, line := range lines {
+		result[i] = string(bytes.TrimSuffix(line, []byte{'\r'}))
+	}
+
+	return result, nil
 }
 
 // watch monitors the file for changes

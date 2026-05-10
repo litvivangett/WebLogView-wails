@@ -65,5 +65,29 @@ export class LogLinesEvent {
     }
 }
 
+/**
+ * LogLoadEvent is emitted for log load lifecycle markers.
+ */
+export class LogLoadEvent {
+    "tabId": string;
+
+    /** Creates a new LogLoadEvent instance. */
+    constructor($$source: Partial<LogLoadEvent> = {}) {
+        if (!("tabId" in $$source)) {
+            this["tabId"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LogLoadEvent instance from a string or object.
+     */
+    static createFrom($$source: any = {}): LogLoadEvent {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LogLoadEvent($$parsedSource as Partial<LogLoadEvent>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
